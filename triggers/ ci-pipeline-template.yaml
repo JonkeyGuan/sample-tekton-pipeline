@@ -52,9 +52,8 @@ spec:
           - name: source-code
             persistentVolumeClaim:
               claimName: source-code
-          - name: maven-settings
-            persistentVolumeClaim:
-              claimName: maven-settings
+          - emptyDir: {}
+            name: maven-settings
           - name: image-cache
             persistentVolumeClaim:
               claimName: image-cache
