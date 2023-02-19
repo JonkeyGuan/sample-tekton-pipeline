@@ -1,0 +1,27 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: ci-pipeline-el
+spec:
+  namespaceSelector: {}
+  resources: {}
+  serviceAccountName: pipeline
+  triggers:
+    - bindings:
+        - kind: TriggerBinding
+          ref: ci-pipeline-binding
+      interceptors:
+        - params:
+            - name: filter
+              value: ''
+            - name: overlays
+              value:
+                - expression: body.after.truncate(7)
+                  key: short_sha
+          ref:
+            kind: ClusterInterceptor
+            name: cel
+      name: ci-pipeline-trigger
+      template:
+        ref: ci-pipeline-template
+

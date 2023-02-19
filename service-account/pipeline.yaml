@@ -1,0 +1,9 @@
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: pipeline
+secrets:
+  - name: pipeline-dockercfg-5kz4t
+  - name: gitlab-token
+imagePullSecrets:
+  - name: pipeline-dockercfg-5kz4t

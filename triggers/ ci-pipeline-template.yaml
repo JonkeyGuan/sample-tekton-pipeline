@@ -1,0 +1,65 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: ci-pipeline-template
+spec:
+  params:
+    - name: git-repo-url
+    - name: git-revision
+    - name: short-commit-id
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        generateName: ci-pipeline-
+      spec:
+        params:
+          - name: git-source-url
+            value: $(tt.params.git-repo-url)
+          - name: git-source-revision
+            value: $(tt.params.git-revision)
+          - name: short-commit-id
+            value: $(tt.params.short-commit-id)
+          - name: MAVEN_MIRROR_URL
+            value: >-
+              http://repo-sonatype-nexus-service.nexus.svc.cluster.local:8081/repository/maven-public/
+          - name: MAVEN_MIRROR_USER
+            value: admin
+          - name: MAVEN_MIRROR_PASSWORD
+            value: Nexus@123
+          - name: SONAR_URL
+            value: 'http://sonarqube-sonarqube.sonarqube.svc.cluster.local:9000'
+          - name: SONAR_AUTH_TOKEN
+            value: sqa_a3fa7093e78d1e883f56e00200b16a9461c4e1bf
+          - name: LOCAL_SCAN_PATH
+            value: ./target/
+          - name: LOCAL_IMAGE_SCAN_PATH
+            value: ./storage/
+          - name: REMOTE_IMAGE_URL
+            value: >-
+              image-registry.openshift-image-registry.svc:5000/cop-dev/my-app-image
+          - name: SEVERITY_LEVELS
+            value: CRITICAL
+          - name: KUSTOMIZE_GIT_URL
+            value: 'https://gitlab.apps.ocp1.jonkey.cc/jonkey/sample-kustomize.git'
+          - name: KUSTOMIZE_GIT_CONTEXT_DIR
+            value: cop-sample-app/overlays/dev
+          - name: KUSTOMIZE_GIT_BRANCH
+            value: main
+        pipelineRef:
+          name: ci-pipeline
+        workspaces:
+          - name: source-code
+            persistentVolumeClaim:
+              claimName: source-code
+          - name: maven-settings
+            persistentVolumeClaim:
+              claimName: maven-settings
+          - name: image-cache
+            persistentVolumeClaim:
+              claimName: image-cache
+          - name: trivy-cache
+            persistentVolumeClaim:
+              claimName: trivy-cache
+          - emptyDir: {}
+            name: kustomize-repo

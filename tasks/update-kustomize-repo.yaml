@@ -1,0 +1,99 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: update-kustomize-repo
+spec:
+  params:
+    - description: URL of the Git repository to update
+      name: gitRepositoryUrl
+      type: string
+    - default: master
+      description: Branch or Tag to push the update to
+      name: gitRepositoryRevision
+      type: string
+    - default: .
+      description: Path in the repository to work in.
+      name: gitPath
+      type: string
+    - default: deployment-patches.yaml
+      description: Name of the file to be updated
+      name: fileName
+      type: string
+    - description: The image tag to be written into the YAML
+      name: imageTag
+      type: string
+    - default: 'true'
+      description: Log the commands used during execution
+      name: verbose
+      type: string
+    - default: 'true'
+      description: >-
+        Set the `http.sslVerify` global git config. Setting this to `false` is
+        not advised unless you are sure that you trust your git remote.
+      name: sslVerify
+      type: string
+  steps:
+    - image: 'alpine/git:v2.26.2'
+      name: git-checkout
+      resources: {}
+      script: |
+        #!/usr/bin/env sh
+
+        git config --global http.sslVerify $(params.sslVerify)
+
+        if [[ "$(params.verbose)" == "true" ]] ; then
+          set -x
+          echo "**** Cloning $(params.gitRepositoryUrl) into $(pwd)"
+        fi
+        git clone "$(params.gitRepositoryUrl)" $(pwd)
+        git checkout "$(params.gitRepositoryRevision)"
+      workingDir: $(workspaces.repository.path)
+    - env:
+        - name: IMAGE_TAG
+          value: $(params.imageTag)
+      image: 'quay.io/dsanchor/ubi8-git:0.0.2'
+      name: update-yaml
+      resources: {}
+      script: >
+        #!/usr/bin/env sh
+
+        set -e
+
+        if [[ "$(params.verbose)" == "true" ]] ; then
+          echo "**** Updating $(params.gitPath)/$(params.fileName) image tag to $(params.imageTag)"
+        fi
+
+        IMAGE_TAG=${IMAGE_TAG//'"'/}
+
+        chmod 707 ./$(params.gitPath)/$(params.fileName)
+
+        CURRENT_IMAGE_TAG=$(cat ./$(params.gitPath)/$(params.fileName) | grep
+        "image:" | sed "s/.*://")
+
+        sed -i "s/:$CURRENT_IMAGE_TAG/:$IMAGE_TAG/"
+        ./$(params.gitPath)/$(params.fileName)
+      workingDir: $(workspaces.repository.path)
+    - image: 'alpine/git:v2.26.2'
+      name: commit-push-changes
+      resources: {}
+      script: |
+        #!/usr/bin/env sh
+
+        git config --global http.sslVerify $(params.sslVerify)
+
+        git config --global user.email "tekton@tekton.dev"
+
+        git config --global user.name "OpenShift Pipeline"
+
+        if [ -z "$(git status --porcelain)" ]; then
+            echo "no change, nothing to update."
+        else
+            git add *
+
+            git commit --allow-empty -m "[OpenShift Pipeline] Updated $(params.gitPath)/$(params.fileName) image tag to $(params.imageTag)"
+            
+            git push origin "$(params.gitRepositoryRevision)" -v
+        fi
+      workingDir: $(workspaces.repository.path)
+  workspaces:
+    - name: repository
